@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>SigShow - Seus Eventos no Mapa</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.4/dist/leaflet.css" /> 
+    <link rel="stylesheet" href="css/leaflet-search.css" />
+    <link rel="stylesheet" href="css/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="css/leaflet.groupedlayercontrol.min.css"/>
+    <link rel="stylesheet" href="css/Leaflet.Coordinates-0.1.5.css"/>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css" integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
+
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex-grow: 1;
+            position: relative;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        .offcanvas-bottom {
+            height: 60vh;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">
+            <i class="fas fa-map-marker-alt"></i> SigShow
+        </a>
+        <button class="btn btn-secondary me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasFilters" aria-controls="offcanvasFilters">
+            <i class="fas fa-filter"></i> Filtros
+        </button>
+        <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+                <a class="btn btn-primary" href="#">Entrar</a>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<main class="main-content">
+    <div id="map"></div>
+</main>
+
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasFilters" aria-labelledby="offcanvasFiltersLabel">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="offcanvasFiltersLabel">Filtros</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <p>Selecione os filtros para refinar sua busca no mapa.</p>
+        <form>
+            <div class="mb-3">
+                <label for="filter-type" class="form-label">Tipo de Evento</label>
+                <select class="form-select" id="filter-type">
+                    <option selected>Todos</option>
+                    <option value="show">Show</option>
+                    <option value="teatro">Teatro</option>
+                    <option value="exposicao">Exposição</option>
+                    <option value="festival">Festival</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="filter-date" class="form-label">Data</label>
+                <input type="date" class="form-control" id="filter-date">
+            </div>
+            <div class="mb-3">
+                <label for="filter-city" class="form-label">Cidade</label>
+                <input type="text" class="form-control" id="filter-city" placeholder="Ex: Brasília">
+            </div>
+            <button type="submit" class="btn btn-success w-100">Aplicar Filtros</button>
+        </form>
+        <hr>
+        <h5>Legenda</h5>
+        <p><i class="fas fa-calendar-alt" style="color: red;"></i> Eventos Musicais/Culturais</p>
+        <p><i class="fas fa-shopping-cart" style="color: green;"></i> Locais de Venda de Ingressos</p>
+    </div>
+</div>
+
+
+<div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalLabel">Detalhes do Evento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="eventModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet@1.3.4/dist/leaflet.js"></script>
+<script src="js/leaflet-search.js"></script>
+<script src="js/leaflet.awesome-markers.js"></script>
+<script src="js/leaflet.groupedlayercontrol.min.js"></script>
+<script src="js/Leaflet.Coordinates-0.1.5.min.js"></script>
+<script src="js/L.Geoserver.js"></script>
+
+<script>
+    // ===================================================================
+    // ================ CÓDIGO LEAFLET - MODIFICADO ======================
+    // ===================================================================
+    
+    var mbUrl2 = 'http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}';
+    var mapasatelite = L.tileLayer(mbUrl2, {subdomains:['mt0','mt1','mt2','mt3'], maxZoom: 20});
+    var maparua = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 20,
+        attribution: '© OpenStreetMap'
+    });
+    
+    // Ícones
+    var vendasIcon = L.AwesomeMarkers.icon({ icon: 'shopping-cart', prefix: 'fa', markerColor: 'green' });
+    var eventosIcon = L.AwesomeMarkers.icon({ icon: 'calendar-alt', prefix: 'fa', markerColor: 'red' });
+    // O ícone para estabelecimentos foi REMOVIDO daqui
+
+    // Camadas
+    var local_vendas = L.geoJSON(null, {
+        pointToLayer: (feature, latlng) => L.marker(latlng, { icon: vendasIcon }),
+        onEachFeature: onFeatureClickShowModal
+    });
+
+    var eventos = L.geoJSON(null, {
+        pointToLayer: (feature, latlng) => L.marker(latlng, { icon: eventosIcon }),
+        onEachFeature: onFeatureClickShowModal
+    });
+    
+    // A definição da camada geoJSON para estabelecimentos foi REMOVIDA daqui
+
+    // Função para Modal (permanece igual)
+    function onFeatureClickShowModal(feature, layer) {
+        layer.on('click', function () {
+            var modal = new bootstrap.Modal(document.getElementById('eventModal'));
+            var props = feature.properties;
+            var title = props.nome || "Detalhe";
+            
+            var content = `
+                <h4>${props.nome || 'Nome não disponível'}</h4>
+                <p><strong>Data:</strong> ${props.data || 'Não informado'}</p>
+                <p><strong>Horário:</strong> ${props.horario || 'Não informado'}</p>
+                <p><strong>Atrações:</strong> ${props.atracoes || 'Não informado'}</p>
+                <p><strong>Ingressos:</strong> ${props.ingressos || 'Não informado'}</p>
+                <p><strong>Descrição:</strong> ${props.descricao || 'Não informado'}</p>
+            `;
+            
+            document.getElementById('eventModalLabel').innerHTML = title;
+            document.getElementById('eventModalBody').innerHTML = content;
+            modal.show();
+        });
+    }
+
+    // Função para carregar WFS (permanece igual)
+    function carregarCamadaWFS(layerName, layerGroup) {
+        var geoserverUrl = "http://localhost:8080/geoserver/ne/ows";
+        var params = { service: 'WFS', version: '1.0.0', request: 'GetFeature', typeName: layerName, outputFormat: 'application/json' };
+        var wfsUrl = geoserverUrl + L.Util.getParamString(params);
+
+        fetch(wfsUrl)
+            .then(response => response.json())
+            .then(data => { layerGroup.addData(data); })
+            .catch(error => console.error("Erro ao carregar " + layerName + ":", error));
+    }
+
+    // Carregamento das camadas
+    carregarCamadaWFS("ne:local_venda", local_vendas);
+    carregarCamadaWFS("ne:evento", eventos);
+    // A chamada para carregar estabelecimentos foi REMOVIDA daqui
+
+    // Inicialização do Mapa
+    var map = L.map('map', {
+        center: [-15.79344, -47.88254],
+        zoom: 13,
+        layers: [maparua, local_vendas, eventos],
+        zoomControl: false
+    });
+    
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    var baseMaps = { "<b>Rua</b>": maparua, "<b>Satélite</b>": mapasatelite };
+    
+    // Controle de Camadas
+    var groupedOverlays = {
+        "<b>Camadas</b>": {
+            "<b>Locais de Venda</b>": local_vendas,
+            "<b>Eventos</b>": eventos
+            // A camada de Estabelecimentos Fixos foi REMOVIDA daqui
+        }
+    };
+    
+    L.control.groupedLayers(baseMaps, groupedOverlays, { position: 'topright' }).addTo(map);
+    L.control.coordinates({ position:"bottomleft", decimals:4, decimalSeperator:",", labelTemplateLat:"Latitude: {y}", labelTemplateLng:"Longitude: {x}", useLatLngOrder:true }).addTo(map);
+
+</script>
+
+</body>
+</html>
