@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>SigShow - Seus Eventos no Mapa</title>
+
+    <!-- ESTILOS (CSS) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" /> 
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.coordinates@0.1.5/dist/Leaflet.Coordinates-0.1.5.css" />
+
+
+    <!-- CSS Customizado -->
+    <style>
+        body, html { height: 100%; margin: 0; padding: 0; display: flex; flex-direction: column; }
+        .main-content { flex-grow: 1; position: relative; }
+        #map { width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+
+<!-- BARRA DE NAVEGAÇÃO -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#"><i class="fas fa-map-marker-alt"></i> SigShow</a>
+        <button class="btn btn-secondary me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasFilters">
+            <i class="fas fa-filter"></i> Filtros
+        </button>
+        <div id="auth-section" class="ms-auto d-flex align-items-center">
+            <div id="admin-buttons" class="d-none">
+                <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#eventoModalForm">Cadastrar Evento</button>
+                <button class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#localVendaModalForm">Cadastrar Local</button>
+            </div>
+            <div id="login-container">
+                 <button id="loginButton" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#loginModal">Entrar</button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- CONTEÚDO PRINCIPAL (MAPA) -->
+<main class="main-content">
+    <div id="map"></div>
+</main>
+
+<!-- FILTROS (OFFCANVAS) -->
+<div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasFilters" aria-labelledby="offcanvasFiltersLabel">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="offcanvasFiltersLabel">Filtros</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <p>Selecione os filtros para refinar sua busca no mapa.</p>
+        <form id="filterForm">
+            <div class="mb-3">
+                <label for="filter-category" class="form-label">Categoria do Evento</label>
+                <select class="form-select" id="filter-category">
+                    <option value="">Todas</option>
+                    <option value="1">Esporte</option>
+                    <option value="2">Música</option>
+                    <option value="3">Teatro</option>
+                    <option value="4">Arte</option>
+                    <option value="5">Tecnologia</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="filter-date" class="form-label">A partir da Data</label>
+                <input type="date" class="form-control" id="filter-date">
+            </div>
+            <div class="mb-3">
+                <label for="filter-city" class="form-label">Cidade</label>
+                <input type="text" class="form-control" id="filter-city" placeholder="Ex: Brasília">
+            </div>
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-success">Aplicar Filtros</button>
+                <button type="button" id="clearFiltersButton" class="btn btn-outline-secondary">Limpar Filtros</button>
+            </div>
+        </form>
+        <hr>
+        <h5>Legenda</h5>
+        <p><i class="fas fa-calendar-alt" style="color: red;"></i> Eventos Musicais/Culturais</p>
+        <p><i class="fas fa-shopping-cart" style="color: green;"></i> Locais de Venda de Ingressos</p>
+    </div>
+</div>
+
+<!-- MODAIS -->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="loginModalLabel">Acesso Restrito</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="loginForm">
+          <div class="mb-3">
+            <label for="loginNome" class="form-label">Nome de Usuário</label>
+            <input type="text" class="form-control" id="loginNome" required>
+          </div>
+          <div class="mb-3">
+            <label for="loginSenha" class="form-label">Senha</label>
+            <input type="password" class="form-control" id="loginSenha" required>
+          </div>
+          <div id="login-error-message" class="alert alert-danger d-none" role="alert"></div>
+          <button type="submit" class="btn btn-primary w-100">Entrar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalLabel">Detalhes do Evento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="eventModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="eventoModalForm" tabindex="-1" aria-labelledby="eventoModalFormLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="eventoModalFormLabel">Cadastrar Novo Evento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="eventoForm">
+            <div class="row">
+                <div class="col-md-8 mb-3"><label for="eventoNome" class="form-label">Nome do Evento</label><input type="text" class="form-control" id="eventoNome" required></div>
+                <div class="col-md-4 mb-3">
+                    <label for="eventoCategoria" class="form-label">Categoria</label>
+                    <select class="form-select" id="eventoCategoria" required>
+                        <option value="" disabled selected>Selecione uma categoria</option>
+                        <option value="1">Esporte</option>
+                        <option value="2">Música</option>
+                        <option value="3">Teatro</option>
+                        <option value="4">Arte</option>
+                        <option value="5">Tecnologia</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3"><label for="eventoDataInicio" class="form-label">Data de Início</label><input type="date" class="form-control" id="eventoDataInicio" required></div>
+                <div class="col-md-6 mb-3"><label for="eventoDataFim" class="form-label">Data de Fim</label><input type="date" class="form-control" id="eventoDataFim" required></div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3"><label for="eventoHorarioInicio" class="form-label">Horário de Início</label><input type="time" class="form-control" id="eventoHorarioInicio" required></div>
+                <div class="col-md-6 mb-3"><label for="eventoHorarioFim" class="form-label">Horário de Fim</label><input type="time" class="form-control" id="eventoHorarioFim" required></div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3"><label for="eventoLatitude" class="form-label">Latitude</label><input type="number" step="any" class="form-control" id="eventoLatitude" required></div>
+                <div class="col-md-6 mb-3"><label for="eventoLongitude" class="form-label">Longitude</label><input type="number" step="any" class="form-control" id="eventoLongitude" required></div>
+            </div>
+            <div class="row">
+                <div class="col-md-8 mb-3"><label for="eventoEndereco" class="form-label">Endereço</label><input type="text" class="form-control" id="eventoEndereco" required></div>
+                <div class="col-md-4 mb-3"><label for="eventoCidade" class="form-label">Cidade</label><input type="text" class="form-control" id="eventoCidade" required></div>
+            </div>
+            <div class="mb-3"><label for="eventoSite" class="form-label">Site de Venda</label><input type="text" class="form-control" id="eventoSite" required placeholder="Ex: www.meusite.com"></div>
+            <div class="mb-3"><label for="eventoDescricao" class="form-label">Descrição</label><textarea class="form-control" id="eventoDescricao" rows="3" required></textarea></div>
+            <div id="evento-form-feedback" class="alert d-none" role="alert"></div>
+            <button type="submit" class="btn btn-primary">Salvar Evento</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="localVendaModalForm" tabindex="-1" aria-labelledby="localVendaModalFormLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="localVendaModalFormLabel">Cadastrar Local de Venda</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="localVendaForm">
+            <div class="mb-3"><label for="localNome" class="form-label">Nome do Local</label><input type="text" class="form-control" id="localNome" required></div>
+            <div class="mb-3">
+                <label for="localIdEvento" class="form-label">Evento Associado</label>
+                <select class="form-select" id="localIdEvento" required>
+                    <option value="" disabled selected>A carregar eventos...</option>
+                </select>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3"><label for="localLatitude" class="form-label">Latitude</label><input type="number" step="any" class="form-control" id="localLatitude" required></div>
+                <div class="col-md-6 mb-3"><label for="localLongitude" class="form-label">Longitude</label><input type="number" step="any" class="form-control" id="localLongitude" required></div>
+            </div>
+            <div class="mb-3"><label for="localEndereco" class="form-label">Endereço</label><input type="text" class="form-control" id="localEndereco" required></div>
+            <div class="mb-3"><label for="localCidade" class="form-label">Cidade</label><input type="text" class="form-control" id="localCidade" required></div>
+            <div id="local-form-feedback" class="alert d-none" role="alert"></div>
+            <button type="submit" class="btn btn-primary">Salvar Local</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmDeleteModalLabel">Confirmar Remoção</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Tem a certeza de que deseja remover este item? Esta ação não pode ser desfeita.</p>
+        <div id="delete-feedback" class="alert d-none mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="confirmDeleteButton" class="btn btn-danger">Remover</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- SCRIPTS (JAVASCRIPT) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.coordinates@0.1.5/dist/Leaflet.Coordinates-0.1.5.min.js"></script>
+
+<script>
+    // LÓGICA DE AUTENTICAÇÃO E CADASTRO
+    const loginForm = document.getElementById('loginForm');
+    const authSection = document.getElementById('auth-section');
+    const adminButtons = document.getElementById('admin-buttons');
+    const loginContainer = document.getElementById('login-container');
+    const eventoForm = document.getElementById('eventoForm');
+    const localVendaForm = document.getElementById('localVendaForm');
+    const localVendaModalEl = document.getElementById('localVendaModalForm');
+
+    loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const loginError = document.getElementById('login-error-message');
+        loginError.classList.add('d-none');
+        const nome = document.getElementById('loginNome').value;
+        const senha = document.getElementById('loginSenha').value;
+        try {
+            const response = await fetch('http://localhost:3000/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nome, senha }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message);
+            localStorage.setItem('sigshow_token', data.token);
+            localStorage.setItem('sigshow_user', JSON.stringify(data.user));
+            bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide();
+            updateUIForLoggedInUser(data.user);
+        } catch (error) {
+            loginError.textContent = error.message;
+            loginError.classList.remove('d-none');
+        }
+    });
+
+    function updateUIForLoggedInUser(user) {
+        loginContainer.innerHTML = `
+            <span class="navbar-text text-white me-3">
+                Olá, ${user.nome}! (${user.type})
+            </span>
+            <button class="btn btn-danger" onclick="logout()">Sair</button>
+        `;
+        adminButtons.classList.remove('d-none');
+    }
+
+    function logout() {
+        localStorage.removeItem('sigshow_token');
+        localStorage.removeItem('sigshow_user');
+        window.location.reload();
+    }
+
+    eventoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const feedbackEl = document.getElementById('evento-form-feedback');
+        const token = localStorage.getItem('sigshow_token');
+        const formData = {
+            nome: document.getElementById('eventoNome').value,
+            data_inicio: document.getElementById('eventoDataInicio').value,
+            data_fim: document.getElementById('eventoDataFim').value,
+            horario_inicio: document.getElementById('eventoHorarioInicio').value,
+            horario_fim: document.getElementById('eventoHorarioFim').value,
+            site_venda: document.getElementById('eventoSite').value,
+            descricao: document.getElementById('eventoDescricao').value,
+            id_categoria: parseInt(document.getElementById('eventoCategoria').value),
+            latitude: parseFloat(document.getElementById('eventoLatitude').value),
+            longitude: parseFloat(document.getElementById('eventoLongitude').value),
+            endereco: document.getElementById('eventoEndereco').value,
+            cidade: document.getElementById('eventoCidade').value,
+        };
+        await submitFormData('http://localhost:3000/eventos', token, formData, feedbackEl, 'eventoModalForm');
+    });
+
+    localVendaForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const feedbackEl = document.getElementById('local-form-feedback');
+        const token = localStorage.getItem('sigshow_token');
+        const formData = {
+            nome: document.getElementById('localNome').value,
+            id_evento: parseInt(document.getElementById('localIdEvento').value),
+            latitude: parseFloat(document.getElementById('localLatitude').value),
+            longitude: parseFloat(document.getElementById('localLongitude').value),
+            endereco: document.getElementById('localEndereco').value,
+            cidade: document.getElementById('localCidade').value,
+        };
+        await submitFormData('http://localhost:3000/locais-venda', token, formData, feedbackEl, 'localVendaModalForm');
+    });
+
+    async function submitFormData(url, token, data, feedbackElement, modalId) {
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            feedbackElement.className = 'alert alert-success d-block';
+            feedbackElement.textContent = result.message;
+            setTimeout(() => {
+                bootstrap.Modal.getInstance(document.getElementById(modalId)).hide();
+                feedbackElement.classList.add('d-none');
+                if (url.includes('eventos')) {
+                    carregarCamadaWFS("ne:evento", eventos);
+                } else if (url.includes('locais-venda')) {
+                    carregarCamadaWFS("ne:local_venda", local_vendas);
+                }
+            }, 2000);
+        } catch (error) {
+            feedbackElement.className = 'alert alert-danger d-block';
+            feedbackElement.textContent = error.message || 'Erro ao enviar formulário.';
+        }
+    }
+    
+    localVendaModalEl.addEventListener('show.bs.modal', async () => {
+        const selectEl = document.getElementById('localIdEvento');
+        const token = localStorage.getItem('sigshow_token');
+        selectEl.innerHTML = '<option value="" disabled selected>A carregar eventos...</option>';
+        try {
+            const response = await fetch('http://localhost:3000/meus-eventos', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const eventosDoUsuario = await response.json();
+            if (!response.ok) throw new Error(eventosDoUsuario.message);
+            selectEl.innerHTML = '';
+            if (eventosDoUsuario.length === 0) {
+                selectEl.innerHTML = '<option value="" disabled selected>Nenhum evento seu encontrado</option>';
+            } else {
+                selectEl.innerHTML = '<option value="" disabled selected>Selecione um evento</option>';
+                eventosDoUsuario.forEach(evento => {
+                    const option = document.createElement('option');
+                    option.value = evento.id_evento;
+                    option.textContent = evento.nome;
+                    selectEl.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao popular eventos:', error);
+            selectEl.innerHTML = `<option value="" disabled selected>Erro ao carregar eventos</option>`;
+        }
+    });
+
+    // LÓGICA DOS FILTROS
+    const filterForm = document.getElementById('filterForm');
+    const clearFiltersButton = document.getElementById('clearFiltersButton');
+
+    filterForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const category = document.getElementById('filter-category').value;
+        const date = document.getElementById('filter-date').value;
+        const city = document.getElementById('filter-city').value;
+        const filters = [];
+        if (category) { filters.push(`id_categoria = ${category}`); }
+        if (date) { filters.push(`data_inicio >= '${date}'`); }
+        if (city) { filters.push(`cidade ILIKE '%${city}%'`); }
+        const cqlFilter = filters.join(' AND ');
+        carregarCamadaWFS("ne:evento", eventos, cqlFilter);
+        const cityFilterLocais = city ? `cidade ILIKE '%${city}%'` : null;
+        carregarCamadaWFS("ne:local_venda", local_vendas, cityFilterLocais);
+        const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasFilters'));
+        if (offcanvas) { offcanvas.hide(); }
+    });
+
+    clearFiltersButton.addEventListener('click', () => {
+        filterForm.reset();
+        carregarCamadaWFS("ne:evento", eventos, null);
+        carregarCamadaWFS("ne:local_venda", local_vendas, null);
+        const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasFilters'));
+        if (offcanvas) { offcanvas.hide(); }
+    });
+
+    // LÓGICA DE REMOÇÃO
+    const confirmDeleteModalEl = document.getElementById('confirmDeleteModal');
+    const confirmDeleteModal = new bootstrap.Modal(confirmDeleteModalEl);
+    const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+    let itemToDelete = { id: null, type: null };
+
+    function prepareDelete(type, id) {
+        itemToDelete = { id, type };
+        const detailsModal = bootstrap.Modal.getInstance(document.getElementById('eventModal'));
+        if (detailsModal) {
+            detailsModal.hide();
+        }
+        const feedbackEl = document.getElementById('delete-feedback');
+        feedbackEl.className = 'alert d-none';
+        feedbackEl.textContent = '';
+        confirmDeleteModal.show();
+    }
+
+    confirmDeleteButton.addEventListener('click', async () => {
+        if (!itemToDelete.id || !itemToDelete.type) return;
+        const { id, type } = itemToDelete;
+        const token = localStorage.getItem('sigshow_token');
+        const feedbackEl = document.getElementById('delete-feedback');
+        let url = '';
+        if (type === 'evento') {
+            url = `http://localhost:3000/eventos/${id}`;
+        } else if (type === 'local_venda') {
+            url = `http://localhost:3000/locais-venda/${id}`;
+        }
+        try {
+            const response = await fetch(url, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            feedbackEl.className = 'alert alert-success d-block';
+            feedbackEl.textContent = result.message;
+            setTimeout(() => {
+                confirmDeleteModal.hide();
+                carregarCamadaWFS("ne:evento", eventos);
+                carregarCamadaWFS("ne:local_venda", local_vendas);
+            }, 2000);
+        } catch (error) {
+            feedbackEl.className = 'alert alert-danger d-block';
+            feedbackEl.textContent = error.message || 'Erro ao remover item.';
+        }
+    });
+
+    // CÓDIGO LEAFLET
+    var map; 
+    var local_vendas;
+    var eventos;
+
+    window.onload = function() {
+        const user = localStorage.getItem('sigshow_user');
+        if (user) {
+            updateUIForLoggedInUser(JSON.parse(user));
+        }
+
+        map = L.map('map', {
+            center: [-15.79344, -47.88254],
+            zoom: 13,
+            zoomControl: false
+        });
+        
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        var mapasatelite = L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {subdomains:['mt0','mt1','mt2','mt3'], maxZoom: 20});
+        var maparua = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 20,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        var vendasIcon = L.AwesomeMarkers.icon({ icon: 'shopping-cart', prefix: 'fa', markerColor: 'green' });
+        var eventosIcon = L.AwesomeMarkers.icon({ icon: 'calendar-alt', prefix: 'fa', markerColor: 'red' });
+
+        local_vendas = L.geoJSON(null, {
+            pointToLayer: (feature, latlng) => L.marker(latlng, { icon: vendasIcon }),
+            onEachFeature: onLocalVendaClick
+        }).addTo(map);
+
+        eventos = L.geoJSON(null, {
+            pointToLayer: (feature, latlng) => L.marker(latlng, { icon: eventosIcon }),
+            onEachFeature: onEventoClick
+        }).addTo(map);
+
+        carregarCamadaWFS("ne:local_venda", local_vendas, null);
+        carregarCamadaWFS("ne:evento", eventos, null);
+
+        var baseMaps = { "<b>Rua</b>": maparua, "<b>Satélite</b>": mapasatelite };
+        var overlays = {
+            "<b>Locais de Venda</b>": local_vendas,
+            "<b>Eventos</b>": eventos
+        };
+        
+        L.control.layers(baseMaps, overlays, { position: 'topright' }).addTo(map);
+        L.control.coordinates({ position:"bottomleft", decimals:4, decimalSeperator:",", labelTemplateLat:"Latitude: {y}", labelTemplateLng:"Longitude: {x}", useLatLngOrder:true }).addTo(map);
+    };
+
+    function onEventoClick(feature, layer) {
+        layer.on('click', function () {
+            const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+            const props = feature.properties;
+            const title = props.nome || "Detalhe do Evento";
+            const user = JSON.parse(localStorage.getItem('sigshow_user'));
+            let deleteButtonHTML = '';
+            if (user && (user.type === 'admin' || user.id === props.id_organizador)) {
+                 deleteButtonHTML = `<hr><button class="btn btn-danger btn-sm w-100 mt-2" onclick="prepareDelete('evento', ${props.id_evento})">Remover Evento</button>`;
+            }
+            const dataInicioFmt = new Date(props.data_inicio).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+            const dataFimFmt = new Date(props.data_fim).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+            const formatTime = (timeString) => {
+                if (!timeString) return '?';
+                return new Date(timeString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+            };
+            const horarioInicioFmt = formatTime(props.horario_inicio);
+            const horarioFimFmt = formatTime(props.horario_fim);
+            const content = `
+                <h4>${props.nome}</h4>
+                <p><strong>Descrição:</strong> ${props.descricao || 'Não informado'}</p>
+                <hr>
+                <p><strong>Período:</strong> De ${dataInicioFmt} a ${dataFimFmt}</p>
+                <p><strong>Horário:</strong> Das ${horarioInicioFmt} às ${horarioFimFmt}</p>
+                <p><strong>Local:</strong> ${props.endereco || 'Não informado'}, ${props.cidade || ''}</p>
+                <p><strong>Site de Venda:</strong> <a href="http://${props.site_venda}" target="_blank" rel="noopener noreferrer">${props.site_venda || 'Não informado'}</a></p>
+                ${deleteButtonHTML}
+            `;
+            document.getElementById('eventModalLabel').innerHTML = title;
+            document.getElementById('eventModalBody').innerHTML = content;
+            modal.show();
+        });
+    }
+
+    function onLocalVendaClick(feature, layer) {
+        layer.on('click', function () {
+            const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+            const props = feature.properties;
+            const title = props.nome || "Detalhe do Ponto de Venda";
+            const user = JSON.parse(localStorage.getItem('sigshow_user'));
+            let deleteButtonHTML = '';
+            if (user) {
+                deleteButtonHTML = `<hr><button class="btn btn-danger btn-sm w-100 mt-2" onclick="prepareDelete('local_venda', ${props.id_local_venda})">Remover Local</button>`;
+            }
+            const content = `
+                <h4>${props.nome}</h4>
+                <p><strong>Tipo:</strong> Ponto de Venda Oficial</p>
+                <hr>
+                <p><strong>Endereço:</strong> ${props.endereco || 'Não informado'}, ${props.cidade || ''}</p>
+                ${deleteButtonHTML}
+            `;
+            document.getElementById('eventModalLabel').innerHTML = title;
+            document.getElementById('eventModalBody').innerHTML = content;
+            modal.show();
+        });
+    }
+
+    function carregarCamadaWFS(layerName, layerGroup, cqlFilter) {
+        var geoserverUrl = "http://localhost:8080/geoserver/ne/ows";
+        var randomParam = '_=' + new Date().getTime();
+        var params = { 
+            service: 'WFS', 
+            version: '1.0.0', 
+            request: 'GetFeature', 
+            typeName: layerName, 
+            outputFormat: 'application/json', 
+            srsName: 'EPSG:4326' 
+        };
+        if (cqlFilter) {
+            params.cql_filter = cqlFilter;
+        }
+        var wfsUrl = geoserverUrl + L.Util.getParamString(params) + '&' + randomParam;
+        fetch(wfsUrl)
+            .then(response => response.json())
+            .then(data => { 
+                layerGroup.clearLayers();
+                layerGroup.addData(data); 
+            })
+            .catch(error => console.error("Erro ao carregar " + layerName + ":", error));
+    }
+
+</script>
+
+</body>
+</html>
