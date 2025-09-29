@@ -1,22 +1,14 @@
-// server.js
-
-// 1. IMPORTAÇÃO DOS PACOTES
 const express = require('express');
-const cors = require('cors');
 const { Pool } = require('pg');
+const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
-
-
-// 2. CONFIGURAÇÃO INICIAL
 const app = express();
 const port = 3000;
-const jwtSecret = 'seu_segredo_super_secreto_para_jwt';
+const SECRET_KEY = 'sua_chave_secreta_super_segura'; // Mude isto para uma chave mais segura
 
-app.use(cors());
-app.use(express.json());
-
-// 3. CONFIGURAÇÃO DA CONEXÃO COM O BANCO DE DADOS
+// Configuração da Pool de Conexão com o PostgreSQL
 const pool = new Pool({
     user: 'postgres',
     host: 'localhost',
@@ -25,168 +17,239 @@ const pool = new Pool({
     port: 5432,
 });
 
-// 4. MIDDLEWARE DE AUTENTICAÇÃO
+
+// Middlewares
+app.use(cors());
+app.use(express.json());
+
+// Rota de Teste
+app.get('/', (req, res) => {
+    res.send('Servidor do SigShow está funcionando!');
+});
+
+// Rota de Login
+app.post('/login', async (req, res) => {
+    const { nome, senha } = req.body;
+    if (!nome || !senha) {
+        return res.status(400).json({ message: 'Nome e senha são obrigatórios.' });
+    }
+    let client;
+    try {
+        client = await pool.connect();
+        let userResult, userType;
+
+        // Tenta encontrar como organizador
+        userResult = await client.query('SELECT * FROM organizador WHERE nome = $1', [nome]);
+        userType = 'organizador';
+
+        // Se não encontrar, tenta como admin
+        if (userResult.rows.length === 0) {
+            userResult = await client.query('SELECT * FROM admin WHERE nome = $1', [nome]);
+            userType = 'admin';
+        }
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Utilizador não encontrado.' });
+        }
+
+        const user = userResult.rows[0];
+        const isPasswordValid = await bcrypt.compare(senha, user.senha);
+
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: 'Senha inválida.' });
+        }
+        
+        const tokenPayload = {
+            id: user.id_organizador || user.id_admin,
+            nome: user.nome,
+            type: userType
+        };
+
+        const token = jwt.sign(tokenPayload, SECRET_KEY, { expiresIn: '1h' });
+        
+        res.json({ 
+            message: 'Login bem-sucedido!', 
+            token,
+            user: tokenPayload
+        });
+
+    } catch (error) {
+        console.error('Erro no login:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// Middleware de Autenticação
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    if (token == null) return res.status(401).json({ message: 'Token não fornecido.' });
+    if (token == null) return res.sendStatus(401);
 
-    jwt.verify(token, jwtSecret, (err, user) => {
-        if (err) return res.status(403).json({ message: 'Token inválido.' });
+    jwt.verify(token, SECRET_KEY, (err, user) => {
+        if (err) return res.sendStatus(403);
         req.user = user;
         next();
     });
 }
 
-// 5. ROTAS (ENDPOINTS)
-
-// Rota de Login
-app.post('/login', async (req, res) => {
-    const { nome, senha } = req.body;
-    if (!nome || !senha) return res.status(400).json({ message: 'Nome e senha são obrigatórios.' });
-
+// Rota para Registar Organizador
+app.post('/register/organizador', async (req, res) => {
+    const { nome, senha, nome_empresa } = req.body;
+    if (!nome || !senha || !nome_empresa) {
+        return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
+    }
     try {
-        let userResult = await pool.query('SELECT * FROM admin WHERE nome = $1', [nome]);
-        let userType = 'admin';
-
-        if (userResult.rows.length === 0) {
-            userResult = await pool.query('SELECT * FROM organizador WHERE nome = $1', [nome]);
-            userType = 'organizador';
-        }
-
-        if (userResult.rows.length === 0) return res.status(401).json({ message: 'Utilizador não encontrado.' });
-        
-        const user = userResult.rows[0];
-        if (senha !== user.senha) return res.status(401).json({ message: 'Senha inválida.' });
-
-        const tokenPayload = { id: user.id_admin || user.id_organizador, nome: user.nome, type: userType };
-        const token = jwt.sign(tokenPayload, jwtSecret, { expiresIn: '1h' });
-        res.status(200).json({ message: 'Login bem-sucedido!', token, user: tokenPayload });
+        const hashedSenha = await bcrypt.hash(senha, 10);
+        await pool.query(
+            'INSERT INTO organizador (nome, senha, nome_empresa) VALUES ($1, $2, $3)',
+            [nome, hashedSenha, nome_empresa]
+        );
+        res.status(201).json({ message: 'Organizador registado com sucesso!' });
     } catch (error) {
-        console.error('Erro no login:', error);
+        console.error('Erro ao registar organizador:', error);
         res.status(500).json({ message: 'Erro interno do servidor.' });
     }
 });
 
-// Rota para buscar eventos do organizador
-app.get('/meus-eventos', authenticateToken, async (req, res) => {
-    const id_organizador = req.user.id;
-    try {
-        const eventosResult = await pool.query('SELECT id_evento, nome FROM evento WHERE id_organizador = $1 ORDER BY nome ASC', [id_organizador]);
-        res.status(200).json(eventosResult.rows);
-    } catch (error) {
-        console.error('Erro ao buscar eventos:', error);
-        res.status(500).json({ message: 'Erro interno do servidor.' });
-    }
-});
+// --- ROTAS DE EVENTOS ---
 
-// Rota para buscar o nome de um evento específico (para o pop-up do local de venda)
+// Obter um evento específico (público)
 app.get('/eventos/:id', async (req, res) => {
-    const { id } = req.params;
     try {
-        const eventoResult = await pool.query('SELECT nome FROM evento WHERE id_evento = $1', [id]);
-        if (eventoResult.rows.length === 0) {
+        const { id } = req.params;
+        const result = await pool.query('SELECT nome FROM evento WHERE id_evento = $1', [id]);
+        if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Evento não encontrado.' });
         }
-        res.status(200).json(eventoResult.rows[0]);
+        res.json(result.rows[0]);
     } catch (error) {
-        console.error('Erro ao buscar nome do evento:', error);
+        console.error('Erro ao buscar evento:', error);
         res.status(500).json({ message: 'Erro interno do servidor.' });
     }
 });
 
-// Rotas de Cadastro
-app.post('/eventos', authenticateToken, async (req, res) => {
-    const id_organizador = req.user.id;
-    const { nome, data_inicio, data_fim, horario_inicio, horario_fim, site_venda, descricao, id_categoria, latitude, longitude, endereco, cidade } = req.body;
+
+// NOVA ROTA - Obter todos os eventos patrocinados (público)
+app.get('/eventos/patrocinados', async (req, res) => {
     try {
-        const novoEvento = await pool.query(
-            `INSERT INTO evento (nome, data_inicio, data_fim, horario_inicio, horario_fim, site_venda, descricao, id_categoria, id_organizador, latitude, longitude, endereco, cidade)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id_evento`,
-            [nome, data_inicio, data_fim, horario_inicio, horario_fim, site_venda, descricao, id_categoria, id_organizador, latitude, longitude, endereco, cidade]
+        const result = await pool.query(
+            `SELECT id_evento, nome, descricao, latitude, longitude, cidade 
+             FROM evento 
+             WHERE patrocinado = TRUE 
+             ORDER BY data_inicio ASC`
         );
-        const id_novo_evento = novoEvento.rows[0].id_evento;
-        await pool.query(`UPDATE evento SET geometria = ST_SetSRID(ST_MakePoint($1, $2), 4326) WHERE id_evento = $3`, [longitude, latitude, id_novo_evento]);
-        res.status(201).json({ message: 'Evento criado com sucesso!', evento: novoEvento.rows[0] });
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Erro ao buscar eventos patrocinados:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
+    }
+});
+
+
+// Obter eventos do organizador logado (protegido)
+app.get('/meus-eventos', authenticateToken, async (req, res) => {
+    try {
+        const id_organizador = req.user.id;
+        const result = await pool.query('SELECT id_evento, nome FROM evento WHERE id_organizador = $1 ORDER BY nome ASC', [id_organizador]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Erro ao buscar eventos do utilizador:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
+    }
+});
+
+// Criar um novo evento (protegido)
+app.post('/eventos', authenticateToken, async (req, res) => {
+    const { nome, data_inicio, data_fim, horario_inicio, horario_fim, site_venda, descricao, id_categoria, latitude, longitude, endereco, cidade, patrocinado } = req.body;
+    const id_organizador = req.user.id;
+
+    // Apenas admins podem definir um evento como patrocinado
+    const isPatrocinado = (req.user.type === 'admin' && patrocinado === true);
+
+    try {
+        const query = `
+            INSERT INTO evento (nome, data_inicio, data_fim, horario_inicio, horario_fim, site_venda, descricao, id_categoria, id_organizador, latitude, longitude, endereco, cidade, patrocinado)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            RETURNING *;
+        `;
+        const values = [nome, data_inicio, data_fim, horario_inicio, horario_fim, site_venda, descricao, id_categoria, id_organizador, latitude, longitude, endereco, cidade, isPatrocinado];
+        const result = await pool.query(query, values);
+        res.status(201).json({ message: 'Evento criado com sucesso!', evento: result.rows[0] });
     } catch (error) {
         console.error('Erro ao criar evento:', error);
         res.status(500).json({ message: 'Erro interno do servidor.' });
     }
 });
 
-app.post('/locais-venda', authenticateToken, async (req, res) => {
-    const { nome, id_evento, latitude, longitude, endereco, cidade } = req.body;
-    try {
-        const novoLocal = await pool.query(
-            `INSERT INTO local_venda (nome, id_evento, latitude, longitude, endereco, cidade)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id_local_venda`,
-            [nome, id_evento, latitude, longitude, endereco, cidade]
-        );
-        const id_novo_local = novoLocal.rows[0].id_local_venda;
-        await pool.query(`UPDATE local_venda SET geometria = ST_SetSRID(ST_MakePoint($1, $2), 4326) WHERE id_local_venda = $3`, [longitude, latitude, id_novo_local]);
-        res.status(201).json({ message: 'Local de venda criado com sucesso!', local: novoLocal.rows[0] });
-    } catch (error) {
-        console.error('Erro ao criar local de venda:', error);
-        res.status(500).json({ message: 'Erro interno do servidor.' });
-    }
-});
 
-// ROTAS DE REMOÇÃO
+// Remover um evento (protegido)
 app.delete('/eventos/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { id: userId, type: userType } = req.user;
-
+    const user = req.user;
     try {
-        const eventResult = await pool.query('SELECT id_organizador FROM evento WHERE id_evento = $1', [id]);
-        if (eventResult.rows.length === 0) {
+        const eventoResult = await pool.query('SELECT id_organizador FROM evento WHERE id_evento = $1', [id]);
+        if (eventoResult.rows.length === 0) {
             return res.status(404).json({ message: 'Evento não encontrado.' });
         }
-        const eventOwnerId = eventResult.rows[0].id_organizador;
-
-        if (userType !== 'admin' && userId !== eventOwnerId) {
-            return res.status(403).json({ message: 'Não tem permissão para remover este evento.' });
+        const evento = eventoResult.rows[0];
+        if (user.type !== 'admin' && user.id !== evento.id_organizador) {
+            return res.status(403).json({ message: 'Acesso negado. Não tem permissão para remover este evento.' });
         }
-
         await pool.query('DELETE FROM local_venda WHERE id_evento = $1', [id]);
         await pool.query('DELETE FROM evento WHERE id_evento = $1', [id]);
-
-        res.status(200).json({ message: 'Evento e locais associados foram removidos com sucesso.' });
+        res.json({ message: 'Evento e locais de venda associados foram removidos com sucesso.' });
     } catch (error) {
         console.error('Erro ao remover evento:', error);
         res.status(500).json({ message: 'Erro interno do servidor.' });
     }
 });
 
+
+// --- ROTAS DE LOCAIS DE VENDA ---
+
+// Criar um novo local de venda (protegido)
+app.post('/locais-venda', authenticateToken, async (req, res) => {
+    const { nome, id_evento, latitude, longitude, endereco, cidade } = req.body;
+    try {
+        const result = await pool.query(
+            'INSERT INTO local_venda (nome, id_evento, latitude, longitude, endereco, cidade) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [nome, id_evento, latitude, longitude, endereco, cidade]
+        );
+        res.status(201).json({ message: 'Local de venda criado com sucesso!', local: result.rows[0] });
+    } catch (error) {
+        console.error('Erro ao criar local de venda:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
+    }
+});
+
+// Remover um local de venda (protegido)
 app.delete('/locais-venda/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { id: userId, type: userType } = req.user;
-
+    const user = req.user;
     try {
-        const locationResult = await pool.query(
-            `SELECT e.id_organizador FROM local_venda lv
-             JOIN evento e ON lv.id_evento = e.id_evento
-             WHERE lv.id_local_venda = $1`,
+        const localResult = await pool.query(
+            'SELECT E.id_organizador FROM local_venda LV JOIN evento E ON LV.id_evento = E.id_evento WHERE LV.id_local_venda = $1', 
             [id]
         );
-        if (locationResult.rows.length === 0) {
+        if (localResult.rows.length === 0) {
             return res.status(404).json({ message: 'Local de venda não encontrado.' });
         }
-        const eventOwnerId = locationResult.rows[0].id_organizador;
-
-        if (userType !== 'admin' && userId !== eventOwnerId) {
-            return res.status(403).json({ message: 'Não tem permissão para remover este local de venda.' });
+        const local = localResult.rows[0];
+        if (user.type !== 'admin' && user.id !== local.id_organizador) {
+            return res.status(403).json({ message: 'Acesso negado.' });
         }
-
         await pool.query('DELETE FROM local_venda WHERE id_local_venda = $1', [id]);
-        res.status(200).json({ message: 'Local de venda removido com sucesso.' });
+        res.json({ message: 'Local de venda removido com sucesso.' });
     } catch (error) {
         console.error('Erro ao remover local de venda:', error);
         res.status(500).json({ message: 'Erro interno do servidor.' });
     }
 });
 
-
-// 6. INICIALIZAÇÃO DO SERVIDOR
+// Iniciar o Servidor
 app.listen(port, () => {
     console.log(`Servidor do SigShow rodando em http://localhost:${port}`);
 });
+
