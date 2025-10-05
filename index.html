@@ -26,6 +26,10 @@
         .sponsored-item:hover {
             background-color: #f8f9fa;
         }
+
+        .txtStyle{
+            font-family: 'Roboto', sans-serif;
+        }
     </style>
 </head>
 <body>
@@ -37,8 +41,14 @@
         <button class="btn btn-secondary me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasFilters">
             <i class="fas fa-filter"></i> Filtros
         </button>
+        
+        <button class="btn btn-secondary me-2" type="button" data-bs-toggle="modal" data-bs-target="#modalPatrocinio">
+            Se torne parceiro!
+        </button>
+
         <div id="auth-section" class="ms-auto d-flex align-items-center">
             <div id="admin-buttons" class="d-none">
+                <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#modalVip"> VIP</button>
                 <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#eventoModalForm">Cadastrar Evento</button>
                 <button class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#localVendaModalForm">Cadastrar Local</button>
             </div>
@@ -48,6 +58,67 @@
         </div>
     </div>
 </nav>
+
+<!-- MODAL DE PARCERIA -->
+<div class="modal fade" id="modalPatrocinio" tabindex="-1" aria-labelledby="modalPatrocinioLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalPatrocinioLabel">Destaque seu Evento no SigShow</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Quer aumentar o alcance do seu show, festival ou evento cultural? O SigShow é a ponte direta para um público apaixonado por novas experiências na sua cidade. Oferecemos uma parceria para ampliar sua divulgação e impulsionar a venda de ingressos.</p>
+        
+        <h5>O que oferecemos na nossa parceria:</h5>
+        <ul>
+            <!-- LISTA DE VANTAGENS VIP-->
+            <li><strong>Divulgação Estratégica:</strong> Oferecemos pacotes de divulgação que incluem impulsionamento em nossas redes sociais e menções em nossa newsletter.</li>
+        </ul>
+
+        <p>Vamos juntos fazer do seu evento um sucesso de público!</p>
+        <hr>
+        <p>Para cadastrar seu evento e conhecer nossos pacotes de divulgação, entre em contato: <strong>eventos@sigshow.com</strong></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ÁREA VIP -->
+<div class="modal fade" id="modalVip" tabindex="-1" aria-labelledby="modalVipLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title" id="modalVipLabel"><i class="fas fa-crown"></i> Acesso à Área VIP SigShow</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="lead">Tenha uma experiência exclusiva com o SigShow VIP!</p>
+        <p>Ao se tornar um membro VIP, você desbloqueia uma série de benefícios pensados para os verdadeiros amantes de eventos. Saiba o que te espera:</p>
+        
+        <h5 class="mt-4">Vantagens de ser VIP:</h5>
+        <ul>
+            <!-- LISTA DE VANTAGENS VIP-->
+            <li><strong>Eventos Exclusivos:</strong> Acesso a uma lista curada de eventos secretos e festas privadas que não são listadas para o público geral.</li>
+            <li><strong>Pré-venda Garantida:</strong> Compre ingressos para os maiores shows e festivais antes de todo mundo, sem se preocupar com lotes esgotados.</li>
+            <li><strong>Descontos Especiais:</strong> Descontos exclusivos em ingressos, produtos e serviços de nossos parceiros.</li>
+        </ul>
+
+        <hr>
+        <p class="text-center">Pronto para elevar sua experiência a outro nível?</p>
+        <div class="d-grid gap-2">
+             <button type="button" class="btn btn-primary btn-lg">Quero ser VIP!</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- CONTEÚDO PRINCIPAL (MAPA) -->
 <main class="main-content">
@@ -89,13 +160,13 @@
         </form>
         <hr>
         <h5>Legenda</h5>
-        <p><i class="fas fa-star" style="color: #FFD700;"></i> Evento Patrocinado</p>
+        <p><i class="fas fa-star" style="color: #FFD700;"></i> Evento Parceiro/p>
         <p><i class="fas fa-calendar-alt" style="color: red;"></i> Outros Eventos</p>
         <p><i class="fas fa-shopping-cart" style="color: green;"></i> Locais de Venda de Ingressos</p>
     </div>
 </div>
 
-<!-- MODAIS -->
+<!-- MODAL LOGIN -->
 <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -134,7 +205,8 @@
         </div>
     </div>
 </div>
-<!-- NOVO MODAL PARA EVENTOS PATROCINADOS -->
+
+<!-- MODAL EVENTOS PATROCINADOS -->
 <div class="modal fade" id="sponsoredEventsModal" tabindex="-1" aria-labelledby="sponsoredEventsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
@@ -264,7 +336,8 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // LÓGICA DE AUTENTICAÇÃO E CADASTRO
+        
+        // LÓGICA DE AUTENTICAÇÃO E CADASTRO (código original)
         const loginForm = document.getElementById('loginForm');
         const authSection = document.getElementById('auth-section');
         const adminButtons = document.getElementById('admin-buttons');
@@ -311,7 +384,8 @@
             }
         }
 
-        function logout() {
+        
+        window.logout = function() {
             localStorage.removeItem('sigshow_token');
             localStorage.removeItem('sigshow_user');
             window.location.reload();
@@ -523,7 +597,7 @@
                 const user = JSON.parse(localStorage.getItem('sigshow_user'));
                 let deleteButtonHTML = '';
                 if (user && (user.type === 'admin' || user.id === props.id_organizador)) {
-                     deleteButtonHTML = `<hr><button class="btn btn-danger btn-sm w-100 mt-2" onclick="prepareDelete('evento', ${props.id_evento})">Remover Evento</button>`;
+                         deleteButtonHTML = `<hr><button class="btn btn-danger btn-sm w-100 mt-2" onclick="prepareDelete('evento', ${props.id_evento})">Remover Evento</button>`;
                 }
                 const patrocinadoBadge = props.patrocinado ? `<p><span class="badge bg-warning text-dark">⭐ Patrocinado</span></p>` : '';
                 const dataInicioFmt = new Date(props.data_inicio).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
