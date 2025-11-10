@@ -53,7 +53,8 @@ app.post('/login', async (req, res) => {
         }
 
         const user = userResult.rows[0];
-        const isPasswordValid = await bcrypt.compare(senha, user.senha);
+        
+        const isPasswordValid = (senha === user.senha);
 
         if (!isPasswordValid) {
             return res.status(401).json({ message: 'Senha inválida.' });
